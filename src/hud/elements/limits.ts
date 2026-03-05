@@ -96,7 +96,7 @@ export function renderRateLimits(limits: RateLimits | null, sevenDayThreshold = 
  *
  * Format: 45%/12% or 45%/12%/8% (with monthly)
  */
-export function renderRateLimitsCompact(limits: RateLimits | null): string | null {
+export function renderRateLimitsCompact(limits: RateLimits | null, sevenDayThreshold = 80): string | null {
   if (!limits) return null;
 
   const fiveHour = Math.min(100, Math.max(0, Math.round(limits.fiveHourPercent)));
@@ -106,8 +106,10 @@ export function renderRateLimitsCompact(limits: RateLimits | null): string | nul
 
   if (limits.weeklyPercent != null) {
     const weekly = Math.min(100, Math.max(0, Math.round(limits.weeklyPercent)));
-    const weeklyColor = getQuotaColor(weekly);
-    parts.push(`${weeklyColor}${weekly}%${RESET}`);
+    if (weekly >= sevenDayThreshold) {
+      const weeklyColor = getQuotaColor(weekly);
+      parts.push(`${weeklyColor}${weekly}%${RESET}`);
+    }
   }
 
   if (limits.monthlyPercent != null) {

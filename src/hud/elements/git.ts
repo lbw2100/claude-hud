@@ -64,7 +64,7 @@ export function getGitBranch(cwd?: string): string | null {
  */
 export function getGitDirty(cwd?: string): boolean {
   try {
-    const result = execSync('git status --porcelain', {
+    const result = execSync('git --no-optional-locks status --porcelain', {
       cwd, encoding: 'utf-8', timeout: 1000,
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: process.platform === 'win32' ? 'cmd.exe' : undefined,

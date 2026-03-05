@@ -86,7 +86,7 @@ function readCache() {
 /**
  * Write usage data to cache
  */
-function writeCache(data, error = false, source, rateLimit = false) {
+function writeCache(data, error = false, source, rateLimit = false, apiError) {
     try {
         const cachePath = getCachePath();
         const cacheDir = dirname(cachePath);
@@ -98,6 +98,7 @@ function writeCache(data, error = false, source, rateLimit = false) {
             data,
             error,
             rateLimit,
+            apiError,
             source,
         };
         writeFileSync(cachePath, JSON.stringify(cache, null, 2));
@@ -144,6 +145,7 @@ function readKeychainCredentials() {
                 accessToken: creds.accessToken,
                 expiresAt: creds.expiresAt,
                 refreshToken: creds.refreshToken,
+                subscriptionType: creds.subscriptionType || creds.rateLimitTier,
                 source: 'keychain',
             };
         }
@@ -170,6 +172,7 @@ function readFileCredentials() {
                 accessToken: creds.accessToken,
                 expiresAt: creds.expiresAt,
                 refreshToken: creds.refreshToken,
+                subscriptionType: creds.subscriptionType || creds.rateLimitTier,
                 source: 'file',
             };
         }
@@ -287,10 +290,10 @@ function fetchUsageFromApi(accessToken) {
                     }
                 }
                 else if (res.statusCode === 429) {
-                    resolve({ data: null, rateLimited: true });
+                    resolve({ data: null, rateLimited: true, statusCode: 429 });
                 }
                 else {
-                    resolve({ data: null, rateLimited: false });
+                    resolve({ data: null, rateLimited: false, statusCode: res.statusCode });
                 }
             });
         });
@@ -504,6 +507,17 @@ export function parseZaiResponse(response) {
     };
 }
 /**
+ * Determine if the user is an API key user (no usage quota to display).
+ * Only returns true when subscriptionType is explicitly 'api' or starts with 'api_'.
+ * Unknown/missing subscriptionType → assume subscriber, proceed with API call.
+ */
+function isApiKeyUser(subscriptionType) {
+    if (!subscriptionType)
+        return false;
+    const lower = subscriptionType.toLowerCase();
+    return lower === 'api' || lower.startsWith('api_');
+}
+/**
  * Get usage data (with caching)
  *
  * Returns a UsageResult with:
@@ -521,6 +535,9 @@ export async function getUsage() {
     // Check cache first (source must match to avoid cross-provider stale data)
     const cache = readCache();
     if (cache && isCacheValid(cache) && cache.source === currentSource) {
+        if (cache.rateLimit && !cache.data) {
+            return { rateLimits: null, error: 'rate_limit', apiError: cache.apiError };
+        }
         return { rateLimits: cache.data, error: cache.error && !cache.data ? 'network' : undefined };
     }
     // z.ai path (must precede OAuth check to avoid stale Anthropic credentials)
@@ -561,10 +578,15 @@ export async function getUsage() {
         }
         // If we still have valid credentials, use Anthropic OAuth flow
         if (creds) {
+            // Skip API for known API key users (no usage quota to display)
+            if (isApiKeyUser(creds.subscriptionType)) {
+                return { rateLimits: null };
+            }
             const result = await fetchUsageFromApi(creds.accessToken);
             if (!result.data) {
-                writeCache(null, true, 'anthropic', result.rateLimited);
-                return { rateLimits: null, error: 'network' };
+                const apiError = result.statusCode ? `http-${result.statusCode}` : undefined;
+                writeCache(null, true, 'anthropic', result.rateLimited, apiError);
+                return { rateLimits: null, error: 'network', apiError };
             }
             const usage = parseUsageResponse(result.data);
             writeCache(usage, !usage, 'anthropic');

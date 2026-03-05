@@ -44,6 +44,17 @@ export declare function getModelTierColor(model: string | undefined): string;
  */
 export declare function getDurationColor(durationMs: number): string;
 /**
+ * Get color code for quota/usage percentage (visually distinct from context bar).
+ * - <75%: bright blue (normal)
+ * - >=75%: bright magenta (warning)
+ * - >=90%: red (critical)
+ */
+export declare function getQuotaColor(percent: number): string;
+/**
+ * Create a quota progress bar with quota-specific colors (distinct from context bar).
+ */
+export declare function quotaBar(percent: number, width?: number): string;
+/**
  * Create a colored progress bar.
  */
 export declare function coloredBar(percent: number, width?: number): string;

@@ -7,22 +7,24 @@
 import type { RateLimits, CustomProviderResult, UsageResult } from '../types.js';
 /**
  * Render rate limits display.
+ * sevenDayThreshold: only show weekly bar when usage >= this value (default 80%).
  *
- * Format: 5h:45%(3h42m) wk:12%(2d5h) mo:8%(15d3h)
+ * Format: 5h:45%(3h42m) wk:12%(2d5h) | ⚠ Limit reached (3h 15m)
  */
-export declare function renderRateLimits(limits: RateLimits | null): string | null;
+export declare function renderRateLimits(limits: RateLimits | null, sevenDayThreshold?: number): string | null;
 /**
  * Render compact rate limits (just percentages).
  *
  * Format: 45%/12% or 45%/12%/8% (with monthly)
  */
-export declare function renderRateLimitsCompact(limits: RateLimits | null): string | null;
+export declare function renderRateLimitsCompact(limits: RateLimits | null, sevenDayThreshold?: number): string | null;
 /**
- * Render rate limits with visual progress bars.
+ * Render rate limits with visual progress bars using quota-specific colors.
+ * sevenDayThreshold: only show weekly bar when usage >= this value (default 80%).
  *
- * Format: 5h:[████░░░░░░]45%(3h42m) wk:[█░░░░░░░░░]12%(2d5h) mo:[░░░░░░░░░░]8%(15d3h)
+ * Format: 5h:[████░░░░]45%(3h42m) wk:[█░░░░░░░]12%(2d5h) | ⚠ Limit reached (3h 15m)
  */
-export declare function renderRateLimitsWithBar(limits: RateLimits | null, barWidth?: number): string | null;
+export declare function renderRateLimitsWithBar(limits: RateLimits | null, barWidth?: number, sevenDayThreshold?: number): string | null;
 /**
  * Render an error indicator when the built-in rate limit API call fails.
  *

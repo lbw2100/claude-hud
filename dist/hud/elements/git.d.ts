@@ -21,6 +21,18 @@ export declare function getGitRepoName(cwd?: string): string | null;
  */
 export declare function getGitBranch(cwd?: string): string | null;
 /**
+ * Check if the working tree has uncommitted changes.
+ */
+export declare function getGitDirty(cwd?: string): boolean;
+/**
+ * Get ahead/behind counts relative to upstream.
+ * Returns null if no upstream is configured.
+ */
+export declare function getGitAheadBehind(cwd?: string): {
+    ahead: number;
+    behind: number;
+} | null;
+/**
  * Render git repository name element.
  *
  * @param cwd - Working directory
@@ -28,7 +40,9 @@ export declare function getGitBranch(cwd?: string): string | null;
  */
 export declare function renderGitRepo(cwd?: string): string | null;
 /**
- * Render git branch element.
+ * Render git branch element with dirty indicator and ahead/behind counts.
+ *
+ * Format: branch:main* ↑2 ↓1
  *
  * @param cwd - Working directory
  * @returns Formatted branch name or null

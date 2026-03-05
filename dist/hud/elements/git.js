@@ -56,6 +56,42 @@ export function getGitBranch(cwd) {
     }
 }
 /**
+ * Check if the working tree has uncommitted changes.
+ */
+export function getGitDirty(cwd) {
+    try {
+        const result = execSync('git --no-optional-locks status --porcelain', {
+            cwd, encoding: 'utf-8', timeout: 1000,
+            stdio: ['pipe', 'pipe', 'pipe'],
+            shell: process.platform === 'win32' ? 'cmd.exe' : undefined,
+        }).trim();
+        return result.length > 0;
+    }
+    catch {
+        return false;
+    }
+}
+/**
+ * Get ahead/behind counts relative to upstream.
+ * Returns null if no upstream is configured.
+ */
+export function getGitAheadBehind(cwd) {
+    try {
+        const result = execSync('git rev-list --count --left-right @{upstream}...HEAD', {
+            cwd, encoding: 'utf-8', timeout: 1000,
+            stdio: ['pipe', 'pipe', 'pipe'],
+            shell: process.platform === 'win32' ? 'cmd.exe' : undefined,
+        }).trim();
+        const parts = result.split('\t');
+        if (parts.length !== 2)
+            return null;
+        return { behind: parseInt(parts[0], 10) || 0, ahead: parseInt(parts[1], 10) || 0 };
+    }
+    catch {
+        return null;
+    }
+}
+/**
  * Render git repository name element.
  *
  * @param cwd - Working directory
@@ -68,7 +104,9 @@ export function renderGitRepo(cwd) {
     return `${dim('repo:')}${cyan(repo)}`;
 }
 /**
- * Render git branch element.
+ * Render git branch element with dirty indicator and ahead/behind counts.
+ *
+ * Format: branch:main* ↑2 ↓1
  *
  * @param cwd - Working directory
  * @returns Formatted branch name or null
@@ -77,6 +115,19 @@ export function renderGitBranch(cwd) {
     const branch = getGitBranch(cwd);
     if (!branch)
         return null;
-    return `${dim('branch:')}${cyan(branch)}`;
+    const dirty = getGitDirty(cwd);
+    const aheadBehind = getGitAheadBehind(cwd);
+    const branchDisplay = dirty ? `${branch}*` : branch;
+    let result = `${dim('branch:')}${cyan(branchDisplay)}`;
+    if (aheadBehind) {
+        const indicators = [];
+        if (aheadBehind.ahead > 0)
+            indicators.push(`↑${aheadBehind.ahead}`);
+        if (aheadBehind.behind > 0)
+            indicators.push(`↓${aheadBehind.behind}`);
+        if (indicators.length > 0)
+            result += ` ${dim(indicators.join(' '))}`;
+    }
+    return result;
 }
 //# sourceMappingURL=git.js.map
