@@ -1,0 +1,19 @@
+{
+  "name": "claude-code-hud-plugin",
+  "version": "1.0.0",
+  "description": "HUD (Heads-Up Display) statusline plugin for Claude Code",
+  "author": {
+    "name": "claude-code-hud-plugin contributors"
+  },
+  "repository": "",
+  "homepage": "",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "plugin",
+    "hud",
+    "statusline",
+    "heads-up-display"
+  ],
+  "skills": "./skills/"
+}

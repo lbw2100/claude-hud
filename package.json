@@ -1,0 +1,33 @@
+{
+  "name": "claude-code-hud-plugin",
+  "version": "1.0.0",
+  "description": "HUD (Heads-Up Display) statusline plugin for Claude Code",
+  "type": "module",
+  "main": "dist/hud/index.js",
+  "bin": {
+    "claude-code-hud": "dist/hud/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "rebuild": "npm run clean && npm run build",
+    "postinstall": "node scripts/plugin-setup.mjs"
+  },
+  "files": [
+    "dist/",
+    "src/",
+    "scripts/",
+    "hooks/",
+    "skills/",
+    ".claude-plugin/",
+    "tsconfig.json"
+  ],
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.14.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "hud",
+  "description": "HUD (Heads-Up Display) statusline for Claude Code - real-time agents, todos, context, model, git status",
+  "owner": {
+    "name": "claude-code-hud-plugin contributors",
+    "email": ""
+  },
+  "plugins": [
+    {
+      "name": "claude-code-hud-plugin",
+      "description": "HUD statusline showing real-time agents, todos, context usage, model info, git branch, rate limits, and more. Extracted from oh-my-claudecode.",
+      "version": "1.0.0",
+      "author": {
+        "name": "claude-code-hud-plugin contributors"
+      },
+      "source": "./",
+      "category": "productivity",
+      "homepage": "",
+      "tags": [
+        "hud",
+        "statusline",
+        "monitoring",
+        "agents",
+        "todos"
+      ]
+    }
+  ],
+  "version": "1.0.0"
+}
