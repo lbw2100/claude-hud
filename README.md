@@ -54,11 +54,9 @@
 
 ## 安装
 
-### 方式一：Claude Code Marketplace（推荐）
-
 ```bash
 # 1. 添加插件仓库
-/plugin marketplace add <github-repo-url>
+/plugin marketplace add https://github.com/lbw2100/claude-hud
 
 # 2. 安装插件
 /plugin install claude-code-hud-plugin
@@ -70,25 +68,6 @@
 - 编译 TypeScript 源码
 - 创建 `~/.claude/hud/hud.mjs` 包装脚本
 - 配置 `~/.claude/settings.json` 的 `statusLine`
-
-### 方式二：本地安装
-
-```bash
-# 1. 克隆到本地
-git clone <repo-url> ~/claude-code-hud-plugin
-cd ~/claude-code-hud-plugin
-
-# 2. 安装依赖并构建
-npm install
-```
-
-然后在 Claude Code 会话中运行：
-
-```
-/plugin install ~/claude-code-hud-plugin
-```
-
-重启 Claude Code 即可。
 
 ### 验证安装
 
