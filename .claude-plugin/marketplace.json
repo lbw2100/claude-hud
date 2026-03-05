@@ -16,7 +16,7 @@
       },
       "source": "./",
       "category": "productivity",
-      "homepage": "",
+      "homepage": "https://github.com/lbw2100/claude-hud",
       "tags": [
         "hud",
         "statusline",

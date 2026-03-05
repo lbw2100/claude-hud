@@ -5,8 +5,8 @@
   "author": {
     "name": "claude-code-hud-plugin contributors"
   },
-  "repository": "",
-  "homepage": "",
+  "repository": "https://github.com/lbw2100/claude-hud",
+  "homepage": "https://github.com/lbw2100/claude-hud",
   "license": "MIT",
   "keywords": [
     "claude-code",
