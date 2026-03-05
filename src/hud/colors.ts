@@ -140,9 +140,33 @@ export function getDurationColor(durationMs: number): string {
   return GREEN;
 }
 
+/**
+ * Get color code for quota/usage percentage (visually distinct from context bar).
+ * - <75%: bright blue (normal)
+ * - >=75%: bright magenta (warning)
+ * - >=90%: red (critical)
+ */
+export function getQuotaColor(percent: number): string {
+  if (percent >= 90) return RED;
+  if (percent >= 75) return BRIGHT_MAGENTA;
+  return BRIGHT_BLUE;
+}
+
 // ============================================================================
 // Progress Bars
 // ============================================================================
+
+/**
+ * Create a quota progress bar with quota-specific colors (distinct from context bar).
+ */
+export function quotaBar(percent: number, width: number = 8): string {
+  const safeWidth = Number.isFinite(width) ? Math.max(0, Math.round(width)) : 0;
+  const safePercent = Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : 0;
+  const filled = Math.round((safePercent / 100) * safeWidth);
+  const empty = safeWidth - filled;
+  const color = getQuotaColor(safePercent);
+  return `${color}${'█'.repeat(filled)}${DIM}${'░'.repeat(empty)}${RESET}`;
+}
 
 /**
  * Create a colored progress bar.

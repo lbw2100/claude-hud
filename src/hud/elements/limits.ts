@@ -6,28 +6,11 @@
  */
 
 import type { RateLimits, CustomProviderResult, CustomBucketUsage, UsageResult } from '../types.js';
-import { RESET } from '../colors.js';
+import { RESET, getQuotaColor, quotaBar } from '../colors.js';
 
-const GREEN = '\x1b[32m';
 const YELLOW = '\x1b[33m';
 const RED = '\x1b[31m';
 const DIM = '\x1b[2m';
-
-// Thresholds for rate limit warnings
-const WARNING_THRESHOLD = 70;
-const CRITICAL_THRESHOLD = 90;
-
-/**
- * Get color based on percentage
- */
-function getColor(percent: number): string {
-  if (percent >= CRITICAL_THRESHOLD) {
-    return RED;
-  } else if (percent >= WARNING_THRESHOLD) {
-    return YELLOW;
-  }
-  return GREEN;
-}
 
 /**
  * Format reset time as human-readable duration.
@@ -58,16 +41,22 @@ function formatResetTime(date: Date | null | undefined): string | null {
 
 /**
  * Render rate limits display.
+ * sevenDayThreshold: only show weekly bar when usage >= this value (default 80%).
  *
- * Format: 5h:45%(3h42m) wk:12%(2d5h) mo:8%(15d3h)
+ * Format: 5h:45%(3h42m) wk:12%(2d5h) | ⚠ Limit reached (3h 15m)
  */
-export function renderRateLimits(limits: RateLimits | null): string | null {
+export function renderRateLimits(limits: RateLimits | null, sevenDayThreshold = 80): string | null {
   if (!limits) return null;
 
   const fiveHour = Math.min(100, Math.max(0, Math.round(limits.fiveHourPercent)));
-  const fiveHourColor = getColor(fiveHour);
-  const fiveHourReset = formatResetTime(limits.fiveHourResetsAt);
 
+  if (fiveHour >= 100) {
+    const reset = formatResetTime(limits.fiveHourResetsAt);
+    return `${RED}⚠ Limit reached${reset ? ` (${reset})` : ''}${RESET}`;
+  }
+
+  const fiveHourColor = getQuotaColor(fiveHour);
+  const fiveHourReset = formatResetTime(limits.fiveHourResetsAt);
   const fiveHourPart = fiveHourReset
     ? `5h:${fiveHourColor}${fiveHour}%${RESET}${DIM}(${fiveHourReset})${RESET}`
     : `5h:${fiveHourColor}${fiveHour}%${RESET}`;
@@ -76,25 +65,26 @@ export function renderRateLimits(limits: RateLimits | null): string | null {
 
   if (limits.weeklyPercent != null) {
     const weekly = Math.min(100, Math.max(0, Math.round(limits.weeklyPercent)));
-    const weeklyColor = getColor(weekly);
-    const weeklyReset = formatResetTime(limits.weeklyResetsAt);
-
-    const weeklyPart = weeklyReset
-      ? `${DIM}wk:${RESET}${weeklyColor}${weekly}%${RESET}${DIM}(${weeklyReset})${RESET}`
-      : `${DIM}wk:${RESET}${weeklyColor}${weekly}%${RESET}`;
-
-    parts.push(weeklyPart);
+    if (weekly >= 100) {
+      const reset = formatResetTime(limits.weeklyResetsAt);
+      parts.push(`${RED}⚠ wk limit${reset ? ` (${reset})` : ''}${RESET}`);
+    } else if (weekly >= sevenDayThreshold) {
+      const weeklyColor = getQuotaColor(weekly);
+      const weeklyReset = formatResetTime(limits.weeklyResetsAt);
+      const weeklyPart = weeklyReset
+        ? `${DIM}wk:${RESET}${weeklyColor}${weekly}%${RESET}${DIM}(${weeklyReset})${RESET}`
+        : `${DIM}wk:${RESET}${weeklyColor}${weekly}%${RESET}`;
+      parts.push(weeklyPart);
+    }
   }
 
   if (limits.monthlyPercent != null) {
     const monthly = Math.min(100, Math.max(0, Math.round(limits.monthlyPercent)));
-    const monthlyColor = getColor(monthly);
+    const monthlyColor = getQuotaColor(monthly);
     const monthlyReset = formatResetTime(limits.monthlyResetsAt);
-
     const monthlyPart = monthlyReset
       ? `${DIM}mo:${RESET}${monthlyColor}${monthly}%${RESET}${DIM}(${monthlyReset})${RESET}`
       : `${DIM}mo:${RESET}${monthlyColor}${monthly}%${RESET}`;
-
     parts.push(monthlyPart);
   }
 
@@ -110,19 +100,19 @@ export function renderRateLimitsCompact(limits: RateLimits | null): string | nul
   if (!limits) return null;
 
   const fiveHour = Math.min(100, Math.max(0, Math.round(limits.fiveHourPercent)));
-  const fiveHourColor = getColor(fiveHour);
+  const fiveHourColor = getQuotaColor(fiveHour);
 
   const parts = [`${fiveHourColor}${fiveHour}%${RESET}`];
 
   if (limits.weeklyPercent != null) {
     const weekly = Math.min(100, Math.max(0, Math.round(limits.weeklyPercent)));
-    const weeklyColor = getColor(weekly);
+    const weeklyColor = getQuotaColor(weekly);
     parts.push(`${weeklyColor}${weekly}%${RESET}`);
   }
 
   if (limits.monthlyPercent != null) {
     const monthly = Math.min(100, Math.max(0, Math.round(limits.monthlyPercent)));
-    const monthlyColor = getColor(monthly);
+    const monthlyColor = getQuotaColor(monthly);
     parts.push(`${monthlyColor}${monthly}%${RESET}`);
   }
 
@@ -130,23 +120,28 @@ export function renderRateLimitsCompact(limits: RateLimits | null): string | nul
 }
 
 /**
- * Render rate limits with visual progress bars.
+ * Render rate limits with visual progress bars using quota-specific colors.
+ * sevenDayThreshold: only show weekly bar when usage >= this value (default 80%).
  *
- * Format: 5h:[████░░░░░░]45%(3h42m) wk:[█░░░░░░░░░]12%(2d5h) mo:[░░░░░░░░░░]8%(15d3h)
+ * Format: 5h:[████░░░░]45%(3h42m) wk:[█░░░░░░░]12%(2d5h) | ⚠ Limit reached (3h 15m)
  */
 export function renderRateLimitsWithBar(
   limits: RateLimits | null,
-  barWidth: number = 8
+  barWidth: number = 8,
+  sevenDayThreshold = 80
 ): string | null {
   if (!limits) return null;
 
   const fiveHour = Math.min(100, Math.max(0, Math.round(limits.fiveHourPercent)));
-  const fiveHourColor = getColor(fiveHour);
-  const fiveHourFilled = Math.round((fiveHour / 100) * barWidth);
-  const fiveHourEmpty = barWidth - fiveHourFilled;
-  const fiveHourBar = `${fiveHourColor}${'█'.repeat(fiveHourFilled)}${DIM}${'░'.repeat(fiveHourEmpty)}${RESET}`;
-  const fiveHourReset = formatResetTime(limits.fiveHourResetsAt);
 
+  if (fiveHour >= 100) {
+    const reset = formatResetTime(limits.fiveHourResetsAt);
+    return `${RED}⚠ Limit reached${reset ? ` (${reset})` : ''}${RESET}`;
+  }
+
+  const fiveHourBar = quotaBar(fiveHour, barWidth);
+  const fiveHourColor = getQuotaColor(fiveHour);
+  const fiveHourReset = formatResetTime(limits.fiveHourResetsAt);
   const fiveHourPart = fiveHourReset
     ? `5h:[${fiveHourBar}]${fiveHourColor}${fiveHour}%${RESET}${DIM}(${fiveHourReset})${RESET}`
     : `5h:[${fiveHourBar}]${fiveHourColor}${fiveHour}%${RESET}`;
@@ -155,32 +150,51 @@ export function renderRateLimitsWithBar(
 
   if (limits.weeklyPercent != null) {
     const weekly = Math.min(100, Math.max(0, Math.round(limits.weeklyPercent)));
-    const weeklyColor = getColor(weekly);
-    const weeklyFilled = Math.round((weekly / 100) * barWidth);
-    const weeklyEmpty = barWidth - weeklyFilled;
-    const weeklyBar = `${weeklyColor}${'█'.repeat(weeklyFilled)}${DIM}${'░'.repeat(weeklyEmpty)}${RESET}`;
-    const weeklyReset = formatResetTime(limits.weeklyResetsAt);
-
-    const weeklyPart = weeklyReset
-      ? `${DIM}wk:${RESET}[${weeklyBar}]${weeklyColor}${weekly}%${RESET}${DIM}(${weeklyReset})${RESET}`
-      : `${DIM}wk:${RESET}[${weeklyBar}]${weeklyColor}${weekly}%${RESET}`;
-
-    parts.push(weeklyPart);
+    if (weekly >= 100) {
+      const reset = formatResetTime(limits.weeklyResetsAt);
+      parts.push(`${RED}⚠ wk limit${reset ? ` (${reset})` : ''}${RESET}`);
+    } else if (weekly >= sevenDayThreshold) {
+      const weeklyBar = quotaBar(weekly, barWidth);
+      const weeklyColor = getQuotaColor(weekly);
+      const weeklyReset = formatResetTime(limits.weeklyResetsAt);
+      const weeklyPart = weeklyReset
+        ? `${DIM}wk:${RESET}[${weeklyBar}]${weeklyColor}${weekly}%${RESET}${DIM}(${weeklyReset})${RESET}`
+        : `${DIM}wk:${RESET}[${weeklyBar}]${weeklyColor}${weekly}%${RESET}`;
+      parts.push(weeklyPart);
+    }
   }
 
   if (limits.monthlyPercent != null) {
     const monthly = Math.min(100, Math.max(0, Math.round(limits.monthlyPercent)));
-    const monthlyColor = getColor(monthly);
-    const monthlyFilled = Math.round((monthly / 100) * barWidth);
-    const monthlyEmpty = barWidth - monthlyFilled;
-    const monthlyBar = `${monthlyColor}${'█'.repeat(monthlyFilled)}${DIM}${'░'.repeat(monthlyEmpty)}${RESET}`;
+    const monthlyBar = quotaBar(monthly, barWidth);
+    const monthlyColor = getQuotaColor(monthly);
     const monthlyReset = formatResetTime(limits.monthlyResetsAt);
-
     const monthlyPart = monthlyReset
       ? `${DIM}mo:${RESET}[${monthlyBar}]${monthlyColor}${monthly}%${RESET}${DIM}(${monthlyReset})${RESET}`
       : `${DIM}mo:${RESET}[${monthlyBar}]${monthlyColor}${monthly}%${RESET}`;
-
     parts.push(monthlyPart);
+  }
+
+  if (limits.sonnetWeeklyPercent != null) {
+    const sonnet = Math.min(100, Math.max(0, Math.round(limits.sonnetWeeklyPercent)));
+    const sonnetBar = quotaBar(sonnet, barWidth);
+    const sonnetColor = getQuotaColor(sonnet);
+    const sonnetReset = formatResetTime(limits.sonnetWeeklyResetsAt);
+    const sonnetPart = sonnetReset
+      ? `${DIM}son:${RESET}[${sonnetBar}]${sonnetColor}${sonnet}%${RESET}${DIM}(${sonnetReset})${RESET}`
+      : `${DIM}son:${RESET}[${sonnetBar}]${sonnetColor}${sonnet}%${RESET}`;
+    parts.push(sonnetPart);
+  }
+
+  if (limits.opusWeeklyPercent != null) {
+    const opus = Math.min(100, Math.max(0, Math.round(limits.opusWeeklyPercent)));
+    const opusBar = quotaBar(opus, barWidth);
+    const opusColor = getQuotaColor(opus);
+    const opusReset = formatResetTime(limits.opusWeeklyResetsAt);
+    const opusPart = opusReset
+      ? `${DIM}op:${RESET}[${opusBar}]${opusColor}${opus}%${RESET}${DIM}(${opusReset})${RESET}`
+      : `${DIM}op:${RESET}[${opusBar}]${opusColor}${opus}%${RESET}`;
+    parts.push(opusPart);
   }
 
   return parts.join(' ');
@@ -197,6 +211,10 @@ export function renderRateLimitsError(result: UsageResult | null): string | null
   if (!result?.error) return null;
   if (result.error === 'no_credentials') return null;
   if (result.error === 'auth') return `${YELLOW}[API auth]${RESET}`;
+  if (result.error === 'rate_limit') {
+    const code = result.apiError?.startsWith('http-') ? result.apiError.slice(5) : '';
+    return `${YELLOW}⚠${code ? `(${code})` : '[RL]'}${RESET}`;
+  }
   return null;
 }
 
@@ -250,7 +268,7 @@ export function renderCustomBuckets(
 
   const parts = result.buckets.map((bucket) => {
     const pct = bucketUsagePercent(bucket.usage);
-    const color = pct != null ? getColor(pct) : '';
+    const color = pct != null ? getQuotaColor(pct) : '';
     const colorReset = pct != null ? RESET : '';
     const usageStr = renderBucketUsageValue(bucket.usage);
 

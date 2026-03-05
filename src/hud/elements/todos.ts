@@ -14,10 +14,10 @@ const CYAN = "\x1b[36m";
 const DIM = "\x1b[2m";
 
 /**
- * Render todo progress.
- * Returns null if no todos.
+ * Render todo progress (compact).
+ * Shows ▸ when in-progress, ✓ when all done.
  *
- * Format: todos:2/5
+ * Format: ▸ todos:2/5 | ✓ todos | todos:2/5
  */
 export function renderTodos(todos: TodoItem[]): string | null {
   if (todos.length === 0) {
@@ -26,26 +26,27 @@ export function renderTodos(todos: TodoItem[]): string | null {
 
   const completed = todos.filter((t) => t.status === "completed").length;
   const total = todos.length;
+  const hasInProgress = todos.some((t) => t.status === "in_progress");
 
-  // Color based on progress
-  let color: string;
   const percent = (completed / total) * 100;
+  const color = percent >= 80 ? GREEN : percent >= 50 ? YELLOW : CYAN;
 
-  if (percent >= 80) {
-    color = GREEN;
-  } else if (percent >= 50) {
-    color = YELLOW;
-  } else {
-    color = CYAN;
+  if (completed === total && total > 0) {
+    return `${GREEN}✓${RESET} ${DIM}todos${RESET}`;
+  }
+
+  if (hasInProgress) {
+    return `${YELLOW}▸${RESET} todos:${color}${completed}/${total}${RESET}`;
   }
 
   return `todos:${color}${completed}/${total}${RESET}`;
 }
 
 /**
- * Render current in-progress todo (for full mode).
+ * Render current in-progress todo with content (for full/focused mode).
  *
- * Format: todos:2/5 (working: Implementing feature)
+ * Format: ▸ Implementing feature (2/5)
+ *         ✓ All todos complete (5/5)
  */
 export function renderTodosWithCurrent(todos: TodoItem[]): string | null {
   if (todos.length === 0) {
@@ -56,26 +57,19 @@ export function renderTodosWithCurrent(todos: TodoItem[]): string | null {
   const total = todos.length;
   const inProgress = todos.find((t) => t.status === "in_progress");
 
-  // Color based on progress
-  const percent = (completed / total) * 100;
-  let color: string;
-
-  if (percent >= 80) {
-    color = GREEN;
-  } else if (percent >= 50) {
-    color = YELLOW;
-  } else {
-    color = CYAN;
+  // All done
+  if (completed === total && total > 0) {
+    return `${GREEN}✓${RESET} ${DIM}All todos complete (${completed}/${total})${RESET}`;
   }
 
-  let result = `todos:${color}${completed}/${total}${RESET}`;
+  const percent = (completed / total) * 100;
+  const color = percent >= 80 ? GREEN : percent >= 50 ? YELLOW : CYAN;
 
   if (inProgress) {
     const activeText = inProgress.activeForm || inProgress.content || "...";
-    // Use CJK-aware truncation (30 visual columns)
-    const truncated = truncateToWidth(activeText, 30);
-    result += ` ${DIM}(working: ${truncated})${RESET}`;
+    const truncated = truncateToWidth(activeText, 45);
+    return `${YELLOW}▸${RESET} ${truncated} ${DIM}(${color}${completed}/${total}${RESET}${DIM})${RESET}`;
   }
 
-  return result;
+  return `todos:${color}${completed}/${total}${RESET}`;
 }
