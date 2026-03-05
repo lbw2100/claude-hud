@@ -189,7 +189,7 @@ export function renderRateLimitsWithBar(
 /**
  * Render an error indicator when the built-in rate limit API call fails.
  *
- * - 'network': API timeout, HTTP error, or parse failure → [API err]
+ * - 'network': API timeout, HTTP error, or parse failure → null (silent)
  * - 'auth': credentials expired, refresh failed → [API auth]
  * - 'no_credentials': no OAuth credentials (expected for API key users) → null (no display)
  */
@@ -197,7 +197,7 @@ export function renderRateLimitsError(result: UsageResult | null): string | null
   if (!result?.error) return null;
   if (result.error === 'no_credentials') return null;
   if (result.error === 'auth') return `${YELLOW}[API auth]${RESET}`;
-  return `${YELLOW}[API err]${RESET}`;
+  return null;
 }
 
 // ============================================================================
@@ -269,4 +269,3 @@ export function renderCustomBuckets(
 
   return parts.join(' ');
 }
-
