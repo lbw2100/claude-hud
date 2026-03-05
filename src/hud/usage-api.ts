@@ -22,8 +22,9 @@ import { validateAnthropicBaseUrl } from '../utils/ssrf-guard.js';
 import type { RateLimits, UsageResult } from './types.js';
 
 // Cache configuration
-const CACHE_TTL_SUCCESS_MS = 30 * 1000; // 30 seconds for successful responses
-const CACHE_TTL_FAILURE_MS = 15 * 1000; // 15 seconds for failures
+const CACHE_TTL_SUCCESS_MS = 30 * 1000;       // 30 seconds for successful responses
+const CACHE_TTL_FAILURE_MS = 15 * 1000;       // 15 seconds for failures
+const CACHE_TTL_RATELIMIT_MS = 5 * 60 * 1000; // 5 minutes for 429 rate limited
 const API_TIMEOUT_MS = 10000;
 const TOKEN_REFRESH_URL_HOSTNAME = 'platform.claude.com';
 const TOKEN_REFRESH_URL_PATH = '/v1/oauth/token';
@@ -38,6 +39,7 @@ interface UsageCache {
   timestamp: number;
   data: RateLimits | null;
   error?: boolean;
+  rateLimit?: boolean;
   /** Provider that produced this cache entry */
   source?: 'anthropic' | 'zai';
 }
@@ -131,7 +133,7 @@ function readCache(): UsageCache | null {
 /**
  * Write usage data to cache
  */
-function writeCache(data: RateLimits | null, error = false, source?: 'anthropic' | 'zai'): void {
+function writeCache(data: RateLimits | null, error = false, source?: 'anthropic' | 'zai', rateLimit = false): void {
   try {
     const cachePath = getCachePath();
     const cacheDir = dirname(cachePath);
@@ -144,6 +146,7 @@ function writeCache(data: RateLimits | null, error = false, source?: 'anthropic'
       timestamp: Date.now(),
       data,
       error,
+      rateLimit,
       source,
     };
 
@@ -157,7 +160,7 @@ function writeCache(data: RateLimits | null, error = false, source?: 'anthropic'
  * Check if cache is still valid
  */
 function isCacheValid(cache: UsageCache): boolean {
-  const ttl = cache.error ? CACHE_TTL_FAILURE_MS : CACHE_TTL_SUCCESS_MS;
+  const ttl = cache.rateLimit ? CACHE_TTL_RATELIMIT_MS : cache.error ? CACHE_TTL_FAILURE_MS : CACHE_TTL_SUCCESS_MS;
   return Date.now() - cache.timestamp < ttl;
 }
 
@@ -323,10 +326,15 @@ function refreshAccessToken(refreshToken: string): Promise<OAuthCredentials | nu
   });
 }
 
+interface ApiResult {
+  data: UsageApiResponse | null;
+  rateLimited: boolean;
+}
+
 /**
  * Fetch usage from Anthropic API
  */
-function fetchUsageFromApi(accessToken: string): Promise<UsageApiResponse | null> {
+function fetchUsageFromApi(accessToken: string): Promise<ApiResult> {
   return new Promise((resolve) => {
     const req = https.request(
       {
@@ -350,21 +358,23 @@ function fetchUsageFromApi(accessToken: string): Promise<UsageApiResponse | null
         res.on('end', () => {
           if (res.statusCode === 200) {
             try {
-              resolve(JSON.parse(data));
+              resolve({ data: JSON.parse(data), rateLimited: false });
             } catch {
-              resolve(null);
+              resolve({ data: null, rateLimited: false });
             }
+          } else if (res.statusCode === 429) {
+            resolve({ data: null, rateLimited: true });
           } else {
-            resolve(null);
+            resolve({ data: null, rateLimited: false });
           }
         });
       }
     );
 
-    req.on('error', () => resolve(null));
+    req.on('error', () => resolve({ data: null, rateLimited: false }));
     req.on('timeout', () => {
       req.destroy();
-      resolve(null);
+      resolve({ data: null, rateLimited: false });
     });
 
     req.end();
@@ -644,13 +654,13 @@ export async function getUsage(): Promise<UsageResult> {
 
     // If we still have valid credentials, use Anthropic OAuth flow
     if (creds) {
-      const response = await fetchUsageFromApi(creds.accessToken);
-      if (!response) {
-        writeCache(null, true, 'anthropic');
+      const result = await fetchUsageFromApi(creds.accessToken);
+      if (!result.data) {
+        writeCache(null, true, 'anthropic', result.rateLimited);
         return { rateLimits: null, error: 'network' };
       }
 
-      const usage = parseUsageResponse(response);
+      const usage = parseUsageResponse(result.data);
       writeCache(usage, !usage, 'anthropic');
       return { rateLimits: usage };
     }
