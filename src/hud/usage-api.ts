@@ -22,9 +22,10 @@ import { validateAnthropicBaseUrl } from '../utils/ssrf-guard.js';
 import type { RateLimits, UsageResult } from './types.js';
 
 // Cache configuration
-const CACHE_TTL_SUCCESS_MS = 30 * 1000;       // 30 seconds for successful responses
+const CACHE_TTL_SUCCESS_MS = 60 * 1000;       // 60 seconds for successful responses
 const CACHE_TTL_FAILURE_MS = 15 * 1000;       // 15 seconds for failures
 const CACHE_TTL_RATELIMIT_MS = 5 * 60 * 1000; // 5 minutes for 429 rate limited
+const KEYCHAIN_BACKOFF_MS = 60 * 1000;        // 60 seconds backoff after keychain failure
 const API_TIMEOUT_MS = 10000;
 const TOKEN_REFRESH_URL_HOSTNAME = 'platform.claude.com';
 const TOKEN_REFRESH_URL_PATH = '/v1/oauth/token';
@@ -168,6 +169,35 @@ function isCacheValid(cache: UsageCache): boolean {
 }
 
 /**
+ * Get/set the keychain backoff timestamp file path
+ */
+function getKeychainBackoffPath(): string {
+  return join(getClaudeConfigDir(), 'hud', '.keychain-backoff');
+}
+
+function isKeychainBackoff(): boolean {
+  try {
+    const p = getKeychainBackoffPath();
+    if (!existsSync(p)) return false;
+    const ts = parseInt(readFileSync(p, 'utf-8'), 10);
+    return Date.now() - ts < KEYCHAIN_BACKOFF_MS;
+  } catch {
+    return false;
+  }
+}
+
+function recordKeychainFailure(): void {
+  try {
+    const p = getKeychainBackoffPath();
+    const dir = dirname(p);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    writeFileSync(p, String(Date.now()));
+  } catch {
+    // ignore
+  }
+}
+
+/**
  * Get the Keychain service name for the current config directory.
  * Claude Code uses "Claude Code-credentials-{sha256(configDir)[:8]}" for non-default dirs.
  */
@@ -185,6 +215,9 @@ function getKeychainServiceName(): string {
  */
 function readKeychainCredentials(): OAuthCredentials | null {
   if (process.platform !== 'darwin') return null;
+
+  // Skip keychain if recently failed, to avoid re-prompting on every render
+  if (isKeychainBackoff()) return null;
 
   try {
     const serviceName = getKeychainServiceName();
@@ -210,7 +243,8 @@ function readKeychainCredentials(): OAuthCredentials | null {
       };
     }
   } catch {
-    // Keychain access failed
+    // Keychain access failed - record for backoff
+    recordKeychainFailure();
   }
 
   return null;
